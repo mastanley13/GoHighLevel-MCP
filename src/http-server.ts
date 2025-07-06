@@ -319,6 +319,18 @@ class GHLMCPHttpServer {
         }
       });
     });
+	// Returns the full tool catalog + metadata in the MCP “describe” format
+    this.app.get('/describe', (_req, res) => {
+      res.json(this.server.describe());
+    });
+
+
+    // ─── STANDARD MCP /describe ENDPOINT ───────────────────────────────
+    // Returns full tool catalog + metadata in the MCP “describe” format
+    this.app.get('/describe', (_req, res) => {
+      res.json(this.server.describe());
+    });
+
 
     // Tools listing endpoint
     this.app.get('/tools', async (req, res) => {
