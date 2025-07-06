@@ -1,7 +1,7 @@
 /**
-	* GoHighLevel MCP HTTP Server
-	* HTTP version for ChatGPT web integration
-*/
+ * GoHighLevel MCP HTTP Server
+ * HTTP version for ChatGPT web integration
+ */
 
 import listEndpoints from 'express-list-endpoints';
 
@@ -15,7 +15,8 @@ import {
 	CallToolRequestSchema,
 	ErrorCode,
 	ListToolsRequestSchema,
-	McpError 
+	McpError,
+	isInitializeRequest
 } from '@modelcontextprotocol/sdk/types.js';
 import { createDescribe, type ToolDescription } from '@modelcontextprotocol/sdk';
 import * as dotenv from 'dotenv';
@@ -46,8 +47,8 @@ import { InvoicesTools } from './tools/invoices-tools.js';
 dotenv.config();
 
 /**
-	* HTTP MCP Server class for web deployment
-*/
+ * HTTP MCP Server class for web deployment
+ */
 class GHLMCPHttpServer {
 	private app: express.Application;
 	private server: Server;
@@ -72,6 +73,9 @@ class GHLMCPHttpServer {
 	private paymentsTools: PaymentsTools;
 	private invoicesTools: InvoicesTools;
 	private port: number;
+	
+	// Map to store transports by session ID for stateful sessions
+	private transports: Record<string, StreamableHTTPServerTransport> = {};
 	
 	constructor() {
 		this.port = parseInt(process.env.PORT || process.env.MCP_SERVER_PORT || '8000');
@@ -120,48 +124,17 @@ class GHLMCPHttpServer {
 		// Setup MCP handlers
 		this.setupMCPHandlers();
 		this.setupRoutes();
-		
-		const transports: Record<string, StreamableHTTPServerTransport> = {};
-		
-		// a) SSE endpoint (client → server receives events)
-		this.app.get('/mcp', (req, res) => {
-			const transport = new StreamableHTTPServerTransport({
-				sessionIdGenerator: () => randomUUID(),
-				onsessioninitialized: (sessionId) => {
-					transports[sessionId] = transport;
-				}
-			});
-			// tell the client this is an event-stream
-			res.setHeader('Content-Type', 'text/event-stream');
-			res.flushHeaders();
-			void this.server.connect(transport);
-		});
-		
-		// b) JSON-RPC endpoint (client sends requests here)
-		this.app.post(
-			'/mcp',
-			express.json(),
-			async (req, res) => {
-				const sessionId = req.header('mcp-session-id');
-				const transport = sessionId ? transports[sessionId] : undefined;
-				if (!transport) {
-					res.status(400).send('No transport for session');
-					return;
-				}
-				await transport.handlePostMessage(req, res, req.body);
-			}
-		);
 	}
 	
 	/**
-		* Setup Express middleware and configuration
-	*/
+	 * Setup Express middleware and configuration
+	 */
 	private setupExpress(): void {
 		// Enable CORS for ChatGPT integration
 		this.app.use(cors({
 			origin: ['https://chatgpt.com', 'https://chat.openai.com', 'http://localhost:*'],
-			methods: ['GET', 'POST', 'OPTIONS'],
-			allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+			methods: ['GET', 'POST', 'DELETE', 'OPTIONS'],
+			allowedHeaders: ['Content-Type', 'Authorization', 'Accept', 'mcp-session-id'],
 			credentials: true
 		}));
 		
@@ -176,8 +149,8 @@ class GHLMCPHttpServer {
 	}
 	
 	/**
-		* Initialize GoHighLevel API client with configuration
-	*/
+	 * Initialize GoHighLevel API client with configuration
+	 */
 	private initializeGHLClient(): GHLApiClient {
 		// Load configuration from environment
 		const config: GHLConfig = {
@@ -205,8 +178,8 @@ class GHLMCPHttpServer {
 	}
 	
 	/**
-		* Setup MCP request handlers
-	*/
+	 * Setup MCP request handlers
+	 */
 	private setupMCPHandlers(): void {
 		// Handle list tools requests
 		this.server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -262,7 +235,7 @@ class GHLMCPHttpServer {
 				return {
 					tools: allTools
 				};
-				} catch (error) {
+			} catch (error) {
 				console.error('[GHL MCP HTTP] Error listing tools:', error);
 				throw new McpError(
 					ErrorCode.InternalError,
@@ -283,39 +256,39 @@ class GHLMCPHttpServer {
 				// Route to appropriate tool handler
 				if (this.isContactTool(name)) {
 					result = await this.contactTools.executeTool(name, args || {});
-					} else if (this.isConversationTool(name)) {
+				} else if (this.isConversationTool(name)) {
 					result = await this.conversationTools.executeTool(name, args || {});
-					} else if (this.isBlogTool(name)) {
+				} else if (this.isBlogTool(name)) {
 					result = await this.blogTools.executeTool(name, args || {});
-					} else if (this.isOpportunityTool(name)) {
+				} else if (this.isOpportunityTool(name)) {
 					result = await this.opportunityTools.executeTool(name, args || {});
-					} else if (this.isCalendarTool(name)) {
+				} else if (this.isCalendarTool(name)) {
 					result = await this.calendarTools.executeTool(name, args || {});
-					} else if (this.isEmailTool(name)) {
+				} else if (this.isEmailTool(name)) {
 					result = await this.emailTools.executeTool(name, args || {});
-					} else if (this.isLocationTool(name)) {
+				} else if (this.isLocationTool(name)) {
 					result = await this.locationTools.executeTool(name, args || {});
-					} else if (this.isEmailISVTool(name)) {
+				} else if (this.isEmailISVTool(name)) {
 					result = await this.emailISVTools.executeTool(name, args || {});
-					} else if (this.isSocialMediaTool(name)) {
+				} else if (this.isSocialMediaTool(name)) {
 					result = await this.socialMediaTools.executeTool(name, args || {});
-					} else if (this.isMediaTool(name)) {
+				} else if (this.isMediaTool(name)) {
 					result = await this.mediaTools.executeTool(name, args || {});
-					} else if (this.isObjectTool(name)) {
+				} else if (this.isObjectTool(name)) {
 					result = await this.objectTools.executeTool(name, args || {});
-					} else if (this.isAssociationTool(name)) {
+				} else if (this.isAssociationTool(name)) {
 					result = await this.associationTools.executeAssociationTool(name, args || {});
-					} else if (this.isCustomFieldV2Tool(name)) {
+				} else if (this.isCustomFieldV2Tool(name)) {
 					result = await this.customFieldV2Tools.executeCustomFieldV2Tool(name, args || {});
-					} else if (this.isWorkflowTool(name)) {
+				} else if (this.isWorkflowTool(name)) {
 					result = await this.workflowTools.executeWorkflowTool(name, args || {});
-					} else if (this.isSurveyTool(name)) {
+				} else if (this.isSurveyTool(name)) {
 					result = await this.surveyTools.executeSurveyTool(name, args || {});
-					} else if (this.isStoreTool(name)) {
+				} else if (this.isStoreTool(name)) {
 					result = await this.storeTools.executeStoreTool(name, args || {});
-					} else if (this.isProductsTool(name)) {
+				} else if (this.isProductsTool(name)) {
 					result = await this.productsTools.executeProductsTool(name, args || {});
-					} else {
+				} else {
 					throw new Error(`Unknown tool: ${name}`);
 				}
 				
@@ -329,7 +302,7 @@ class GHLMCPHttpServer {
 						}
 					]
 				};
-				} catch (error) {
+			} catch (error) {
 				console.error(`[GHL MCP HTTP] Error executing tool ${name}:`, error);
 				
 				throw new McpError(
@@ -341,8 +314,8 @@ class GHLMCPHttpServer {
 	}
 	
 	/**
-		* Setup HTTP routes
-	*/
+	 * Setup HTTP routes
+	 */
 	private setupRoutes(): void {
 		// Health check endpoint
 		this.app.get('/health', (req, res) => {
@@ -370,12 +343,11 @@ class GHLMCPHttpServer {
 			});
 		});
 		
-		
 		// ─── STANDARD MCP /describe ENDPOINT ───────────────────────────────
-		// Returns the full MCP “describe” JSON document
+		// Returns the full MCP "describe" JSON document
 		this.app.get('/describe', (_req, res) => {
 			console.log('🔎  /describe called');
-			// 1) Gather every tool’s JSON schema
+			// 1) Gather every tool's JSON schema
 			const allTools: ToolDescription[] = [
 				...this.contactTools.getToolDefinitions(),
 				...this.conversationTools.getToolDefinitions(),
@@ -412,8 +384,6 @@ class GHLMCPHttpServer {
 			res.json(describeDoc);
 		});
 		
-		
-		
 		// Tools listing endpoint
 		this.app.get('/tools', async (req, res) => {
 			try {
@@ -439,15 +409,116 @@ class GHLMCPHttpServer {
 				const invoicesTools = this.invoicesTools.getTools();
 				
 				res.json({
-					tools: [...contactTools, ...conversationTools, ...blogTools, ...opportunityTools, ...calendarTools, ...emailTools, ...locationTools, ...emailISVTools, ...mediaTools, ...objectTools, ...socialMediaTools, ...associationTools, ...customFieldV2Tools, ...workflowTools, ...surveyTools, ...storeTools, ...productsTools, paymentsTools, invoicesTools],
-					count: contactTools.length + conversationTools.length + blogTools.length + opportunityTools.length + calendarTools.length + emailTools.length + locationTools.length + emailISVTools.length + socialMediaTools.length + mediaTools.length + objectTools.length + associationTools.length + customFieldV2Tools.length + workflowTools.length + surveyTools.length + storeTools.length + productsTools.length
+					tools: [...contactTools, ...conversationTools, ...blogTools, ...opportunityTools, ...calendarTools, ...emailTools, ...locationTools, ...emailISVTools, ...mediaTools, ...objectTools, ...socialMediaTools, ...associationTools, ...customFieldV2Tools, ...workflowTools, ...surveyTools, ...storeTools, ...productsTools, ...paymentsTools, ...invoicesTools],
+					count: contactTools.length + conversationTools.length + blogTools.length + opportunityTools.length + calendarTools.length + emailTools.length + locationTools.length + emailISVTools.length + socialMediaTools.length + mediaTools.length + objectTools.length + associationTools.length + customFieldV2Tools.length + workflowTools.length + surveyTools.length + storeTools.length + productsTools.length + paymentsTools.length + invoicesTools.length
 				});
-				} catch (error) {
+			} catch (error) {
 				res.status(500).json({ error: 'Failed to list tools' });
 			}
 		});
+
+		// ─── PROPER MCP STREAMABLE HTTP ENDPOINTS ─────────────────────────
 		
-		// SSE endpoint for ChatGPT MCP connection
+		// Handle POST requests for client-to-server communication (Streamable HTTP)
+		this.app.post('/mcp', async (req, res) => {
+			try {
+				// Check for existing session ID
+				const sessionId = req.headers['mcp-session-id'] as string | undefined;
+				let transport: StreamableHTTPServerTransport;
+
+				if (sessionId && this.transports[sessionId]) {
+					// Reuse existing transport for subsequent requests
+					transport = this.transports[sessionId];
+					console.log(`[MCP] Reusing transport for session: ${sessionId}`);
+				} else if (!sessionId && isInitializeRequest(req.body)) {
+					// New initialization request - create new transport
+					transport = new StreamableHTTPServerTransport({
+						sessionIdGenerator: () => randomUUID(),
+						onsessioninitialized: (newSessionId) => {
+							console.log(`[MCP] New session initialized: ${newSessionId}`);
+							if (newSessionId) {
+								this.transports[newSessionId] = transport;
+							}
+						}
+					});
+					
+					// Connect server to this transport
+					await this.server.connect(transport);
+					console.log('[MCP] New transport created and connected');
+				} else {
+					// Invalid request
+					return res.status(400).json({
+						jsonrpc: '2.0',
+						error: {
+							code: -32600,
+							message: 'Invalid Request'
+						},
+						id: null
+					});
+				}
+
+				// Handle the request using the CORRECT method name
+				await transport.handleRequest(req, res, req.body);
+				
+			} catch (error) {
+				console.error('[MCP] Error handling MCP request:', error);
+				if (!res.headersSent) {
+					res.status(500).json({
+						jsonrpc: '2.0',
+						error: {
+							code: -32603,
+							message: 'Internal server error'
+						},
+						id: null
+					});
+				}
+			}
+		});
+
+		// Handle GET requests for SSE (Server-Sent Events) - optional
+		this.app.get('/mcp', async (req, res) => {
+			const sessionId = req.headers['mcp-session-id'] as string | undefined;
+			
+			if (!sessionId || !this.transports[sessionId]) {
+				return res.status(400).json({
+					jsonrpc: '2.0',
+					error: {
+						code: -32600,
+						message: 'Invalid session'
+					},
+					id: null
+				});
+			}
+
+			// Set up SSE headers
+			res.setHeader('Content-Type', 'text/event-stream');
+			res.setHeader('Cache-Control', 'no-cache');
+			res.setHeader('Connection', 'keep-alive');
+			
+			// Handle SSE connection
+			const transport = this.transports[sessionId];
+			// Implementation depends on your specific SSE needs
+			
+			res.on('close', () => {
+				console.log(`[MCP] SSE connection closed for session: ${sessionId}`);
+			});
+		});
+
+		// Handle DELETE requests for session termination
+		this.app.delete('/mcp', async (req, res) => {
+			const sessionId = req.headers['mcp-session-id'] as string | undefined;
+			
+			if (sessionId && this.transports[sessionId]) {
+				const transport = this.transports[sessionId];
+				transport.close();
+				delete this.transports[sessionId];
+				console.log(`[MCP] Session terminated: ${sessionId}`);
+			}
+			
+			res.status(204).send();
+		});
+		
+		// SSE endpoint for ChatGPT MCP connection (Legacy support)
 		const handleSSE = async (req: express.Request, res: express.Response) => {
 			const sessionId = req.query.sessionId || 'unknown';
 			console.log(`[GHL MCP HTTP] New SSE connection from: ${req.ip}, sessionId: ${sessionId}, method: ${req.method}`);
@@ -466,13 +537,13 @@ class GHLMCPHttpServer {
 					console.log(`[GHL MCP HTTP] SSE connection closed for session: ${sessionId}`);
 				});
 				
-				} catch (error) {
+			} catch (error) {
 				console.error(`[GHL MCP HTTP] SSE connection error for session ${sessionId}:`, error);
 				
 				// Only send error response if headers haven't been sent yet
 				if (!res.headersSent) {
 					res.status(500).json({ error: 'Failed to establish SSE connection' });
-					} else {
+				} else {
 					// If headers were already sent, close the connection
 					res.end();
 				}
@@ -493,19 +564,21 @@ class GHLMCPHttpServer {
 					health: '/health',
 					capabilities: '/capabilities',
 					tools: '/tools',
-					sse: '/sse'
+					mcp: '/mcp',
+					sse: '/sse (legacy)'
 				},
 				tools: this.getToolsCount(),
 				documentation: 'https://github.com/your-repo/ghl-mcp-server'
 			});
 		});
+		
 		// Debug: show all registered routes at startup
 		console.log('📋 Registered Express endpoints:', listEndpoints(this.app));
 	}
 	
 	/**
-		* Get tools count summary
-	*/
+	 * Get tools count summary
+	 */
 	private getToolsCount() {
 		return {
 			contact: this.contactTools.getToolDefinitions().length,
@@ -526,28 +599,28 @@ class GHLMCPHttpServer {
 			store: this.storeTools.getTools().length,
 			products: this.productsTools.getTools().length,
 			total: this.contactTools.getToolDefinitions().length + 
-			this.conversationTools.getToolDefinitions().length + 
-			this.blogTools.getToolDefinitions().length +
-			this.opportunityTools.getToolDefinitions().length +
-			this.calendarTools.getToolDefinitions().length +
-			this.emailTools.getToolDefinitions().length +
-			this.locationTools.getToolDefinitions().length +
-			this.emailISVTools.getToolDefinitions().length +
-			this.mediaTools.getToolDefinitions().length +
-			this.objectTools.getToolDefinitions().length +
-			this.socialMediaTools.getTools().length +
-			this.associationTools.getTools().length +
-			this.customFieldV2Tools.getTools().length +
-			this.workflowTools.getTools().length +
-			this.surveyTools.getTools().length +
-			this.storeTools.getTools().length +
-			this.productsTools.getTools().length
+				this.conversationTools.getToolDefinitions().length + 
+				this.blogTools.getToolDefinitions().length +
+				this.opportunityTools.getToolDefinitions().length +
+				this.calendarTools.getToolDefinitions().length +
+				this.emailTools.getToolDefinitions().length +
+				this.locationTools.getToolDefinitions().length +
+				this.emailISVTools.getToolDefinitions().length +
+				this.mediaTools.getToolDefinitions().length +
+				this.objectTools.getToolDefinitions().length +
+				this.socialMediaTools.getTools().length +
+				this.associationTools.getTools().length +
+				this.customFieldV2Tools.getTools().length +
+				this.workflowTools.getTools().length +
+				this.surveyTools.getTools().length +
+				this.storeTools.getTools().length +
+				this.productsTools.getTools().length
 		};
 	}
 	
 	/**
-		* Tool name validation helpers
-	*/
+	 * Tool name validation helpers
+	 */
 	private isContactTool(toolName: string): boolean {
 		const contactToolNames = [
 			// Basic Contact Management
@@ -762,8 +835,8 @@ class GHLMCPHttpServer {
 	}
 	
 	/**
-		* Test GHL API connection
-	*/
+	 * Test GHL API connection
+	 */
 	private async testGHLConnection(): Promise<void> {
 		try {
 			console.log('[GHL MCP HTTP] Testing GHL API connection...');
@@ -772,15 +845,15 @@ class GHLMCPHttpServer {
 			
 			console.log('[GHL MCP HTTP] ✅ GHL API connection successful');
 			console.log(`[GHL MCP HTTP] Connected to location: ${result.data?.locationId}`);
-			} catch (error) {
+		} catch (error) {
 			console.error('[GHL MCP HTTP] ❌ GHL API connection failed:', error);
 			throw new Error(`Failed to connect to GHL API: ${error}`);
 		}
 	}
 	
 	/**
-		* Start the HTTP server
-	*/
+	 * Start the HTTP server
+	 */
 	async start(): Promise<void> {
 		console.log('🚀 Starting GoHighLevel MCP HTTP Server...');
 		console.log('=========================================');
@@ -793,13 +866,14 @@ class GHLMCPHttpServer {
 			this.app.listen(this.port, '0.0.0.0', () => {
 				console.log('✅ GoHighLevel MCP HTTP Server started successfully!');
 				console.log(`🌐 Server running on: http://0.0.0.0:${this.port}`);
-				console.log(`🔗 SSE Endpoint: http://0.0.0.0:${this.port}/sse`);
+				console.log(`🔗 MCP Endpoint: http://0.0.0.0:${this.port}/mcp`);
+				console.log(`🔗 SSE Endpoint (Legacy): http://0.0.0.0:${this.port}/sse`);
 				console.log(`📋 Tools Available: ${this.getToolsCount().total}`);
 				console.log('🎯 Ready for ChatGPT integration!');
 				console.log('=========================================');
 			});
 			
-			} catch (error) {
+		} catch (error) {
 			console.error('❌ Failed to start GHL MCP HTTP Server:', error);
 			process.exit(1);
 		}
@@ -807,8 +881,8 @@ class GHLMCPHttpServer {
 }
 
 /**
-	* Handle graceful shutdown
-*/
+ * Handle graceful shutdown
+ */
 function setupGracefulShutdown(): void {
 	const shutdown = (signal: string) => {
 		console.log(`\n[GHL MCP HTTP] Received ${signal}, shutting down gracefully...`);
@@ -820,8 +894,8 @@ function setupGracefulShutdown(): void {
 }
 
 /**
-	* Main entry point
-*/
+ * Main entry point
+ */
 async function main(): Promise<void> {
 	try {
 		// Setup graceful shutdown
@@ -831,7 +905,7 @@ async function main(): Promise<void> {
 		const server = new GHLMCPHttpServer();
 		await server.start();
 		
-		} catch (error) {
+	} catch (error) {
 		console.error('💥 Fatal error:', error);
 		process.exit(1);
 	}
@@ -841,4 +915,4 @@ async function main(): Promise<void> {
 main().catch((error) => {
 	console.error('Unhandled error:', error);
 	process.exit(1);
-}); 
+});
