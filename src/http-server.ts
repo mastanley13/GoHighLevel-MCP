@@ -918,8 +918,31 @@ async function main(): Promise<void> {
 	}
 }
 
-// Start the server
-main().catch((error) => {
-	console.error('Unhandled error:', error);
-	process.exit(1);
-});
+let serverInstance: GHLMCPHttpServer | null = null;
+
+// For Vercel serverless environment
+if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
+    // Create server instance but don't start the HTTP listener
+    async function createServerlessApp() {
+        try {
+            setupGracefulShutdown();
+            serverInstance = new GHLMCPHttpServer();
+            // Don't call start() - just set up the routes
+            await serverInstance['testGHLConnection'](); // Test the connection
+            console.log('✅ Serverless GHL MCP Server ready');
+            return serverInstance['app']; // Return the Express app
+        } catch (error) {
+            console.error('❌ Failed to initialize serverless server:', error);
+            throw error;
+        }
+    }
+    
+    // Export the Express app for Vercel
+    module.exports = createServerlessApp();
+} else {
+    // For local development, run normally
+    main().catch((error) => {
+        console.error('Unhandled error:', error);
+        process.exit(1);
+    });
+}
