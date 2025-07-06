@@ -385,7 +385,7 @@ class GHLMCPHttpServer {
 		});
 		
 		// Tools listing endpoint
-		this.app.get('/tools', async (req, res) => {
+		this.app.get('/tools', async (req: express.Request, res: express.Response): Promise<void> => {
 			try {
 				const contactTools = this.contactTools.getToolDefinitions();
 				const conversationTools = this.conversationTools.getToolDefinitions();
@@ -420,7 +420,7 @@ class GHLMCPHttpServer {
 		// ─── PROPER MCP STREAMABLE HTTP ENDPOINTS ─────────────────────────
 		
 		// Handle POST requests for client-to-server communication (Streamable HTTP)
-		this.app.post('/mcp', async (req, res) => {
+		this.app.post('/mcp', async (req: express.Request, res: express.Response): Promise<void> => {
 			try {
 				// Check for existing session ID
 				const sessionId = req.headers['mcp-session-id'] as string | undefined;
@@ -476,7 +476,7 @@ class GHLMCPHttpServer {
 		});
 		
 		// Handle GET requests for SSE (Server-Sent Events) - optional
-		this.app.get('/mcp', async (req, res) => {
+		this.app.get('/mcp', async (req: express.Request, res: express.Response): Promise<void> => {
 			const sessionId = req.headers['mcp-session-id'] as string | undefined;
 			
 			if (!sessionId || !this.transports[sessionId]) {
