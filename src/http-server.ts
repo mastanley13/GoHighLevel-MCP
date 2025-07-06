@@ -3,6 +3,8 @@
 	* HTTP version for ChatGPT web integration
 */
 
+import listEndpoints from 'express-list-endpoints';
+
 import express from 'express';
 import cors from 'cors';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
@@ -322,6 +324,7 @@ class GHLMCPHttpServer {
 		
 		// MCP capabilities endpoint
 		this.app.get('/capabilities', (req, res) => {
+		console.log('🔎  /capabilities called');
 			res.json({
 				capabilities: {
 					tools: {},
@@ -337,6 +340,7 @@ class GHLMCPHttpServer {
 		// ─── STANDARD MCP /describe ENDPOINT ───────────────────────────────
 		// Returns the full MCP “describe” JSON document
 		this.app.get('/describe', (_req, res) => {
+		console.log('🔎  /describe called');
 			// 1) Gather every tool’s JSON schema
 			const allTools: ToolDescription[] = [
 				...this.contactTools.getToolDefinitions(),
@@ -461,6 +465,8 @@ class GHLMCPHttpServer {
 				documentation: 'https://github.com/your-repo/ghl-mcp-server'
 			});
 		});
+		// Debug: show all registered routes at startup
+		console.log('📋 Registered Express endpoints:', listEndpoints(this.app));
 	}
 	
 	/**
