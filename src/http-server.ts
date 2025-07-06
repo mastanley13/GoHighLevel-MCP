@@ -50,7 +50,7 @@ dotenv.config();
 	* HTTP MCP Server class for web deployment
 */
 class GHLMCPHttpServer {
-	private app: express.Application;
+	public app: express.Application;
 	private server: Server;
 	private ghlClient: GHLApiClient;
 	private contactTools: ContactTools;
@@ -869,16 +869,21 @@ class GHLMCPHttpServer {
 			// Test GHL API connection
 			await this.testGHLConnection();
 			
-			// Start HTTP server
-			this.app.listen(this.port, '0.0.0.0', () => {
-				console.log('✅ GoHighLevel MCP HTTP Server started successfully!');
-				console.log(`🌐 Server running on: http://0.0.0.0:${this.port}`);
-				console.log(`🔗 MCP Endpoint: http://0.0.0.0:${this.port}/mcp`);
-				console.log(`🔗 SSE Endpoint (Legacy): http://0.0.0.0:${this.port}/sse`);
-				console.log(`📋 Tools Available: ${this.getToolsCount().total}`);
-				console.log('🎯 Ready for ChatGPT integration!');
-				console.log('=========================================');
-			});
+			// Only start HTTP server in non-serverless environments
+			if (!process.env.VERCEL) {
+				// Start HTTP server
+				this.app.listen(this.port, '0.0.0.0', () => {
+					console.log('✅ GoHighLevel MCP HTTP Server started successfully!');
+					console.log(`🌐 Server running on: http://0.0.0.0:${this.port}`);
+					console.log(`🔗 MCP Endpoint: http://0.0.0.0:${this.port}/mcp`);
+					console.log(`🔗 SSE Endpoint (Legacy): http://0.0.0.0:${this.port}/sse`);
+					console.log(`📋 Tools Available: ${this.getToolsCount().total}`);
+					console.log('🎯 Ready for ChatGPT integration!');
+					console.log('=========================================');
+				});
+				} else {
+				console.log('✅ Serverless mode - Express app ready for Vercel');
+			}
 			
 			} catch (error) {
 			console.error('❌ Failed to start GHL MCP HTTP Server:', error);
@@ -887,9 +892,46 @@ class GHLMCPHttpServer {
 	}
 }
 
+// Export for both standalone and serverless use
+export { GHLMCPHttpServer };
+
+// For Vercel serverless deployment
+if (process.env.VERCEL) {
+	console.log('🔧 Initializing for Vercel serverless environment...');
+	
+	// Create server instance without starting HTTP listener
+	const serverInstance = new GHLMCPHttpServer();
+	
+	// Export the Express app for Vercel
+	module.exports = serverInstance.app;
+	
+} else {
+	// For local development, run normally
+	async function main(): Promise<void> {
+		try {
+			// Setup graceful shutdown
+			setupGracefulShutdown();
+			
+			// Create and start HTTP server
+			const server = new GHLMCPHttpServer();
+			await server.start();
+			
+		} catch (error) {
+			console.error('💥 Fatal error:', error);
+			process.exit(1);
+		}
+	}
+	
+	// Start the server only in non-Vercel environments
+	main().catch((error) => {
+		console.error('Unhandled error:', error);
+		process.exit(1);
+	});
+}
+
 /**
-	* Handle graceful shutdown
-*/
+ * Handle graceful shutdown
+ */
 function setupGracefulShutdown(): void {
 	const shutdown = (signal: string) => {
 		console.log(`\n[GHL MCP HTTP] Received ${signal}, shutting down gracefully...`);
@@ -900,49 +942,3 @@ function setupGracefulShutdown(): void {
 	process.on('SIGTERM', () => shutdown('SIGTERM'));
 }
 
-/**
-	* Main entry point
-*/
-async function main(): Promise<void> {
-	try {
-		// Setup graceful shutdown
-		setupGracefulShutdown();
-		
-		// Create and start HTTP server
-		const server = new GHLMCPHttpServer();
-		await server.start();
-		
-		} catch (error) {
-		console.error('💥 Fatal error:', error);
-		process.exit(1);
-	}
-}
-
-let serverInstance: GHLMCPHttpServer | null = null;
-
-// For Vercel serverless environment
-if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
-    // Create server instance but don't start the HTTP listener
-    async function createServerlessApp() {
-        try {
-            setupGracefulShutdown();
-            serverInstance = new GHLMCPHttpServer();
-            // Don't call start() - just set up the routes
-            await serverInstance['testGHLConnection'](); // Test the connection
-            console.log('✅ Serverless GHL MCP Server ready');
-            return serverInstance['app']; // Return the Express app
-        } catch (error) {
-            console.error('❌ Failed to initialize serverless server:', error);
-            throw error;
-        }
-    }
-    
-    // Export the Express app for Vercel
-    module.exports = createServerlessApp();
-} else {
-    // For local development, run normally
-    main().catch((error) => {
-        console.error('Unhandled error:', error);
-        process.exit(1);
-    });
-}
