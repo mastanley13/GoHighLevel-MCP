@@ -356,6 +356,8 @@ class GHLMCPHttpServer {
 				...this.surveyTools.getTools(),
 				...this.storeTools.getTools(),
 				...this.productsTools.getTools(),
+				...this.paymentsTools.getTools(),
+				...this.invoicesTools.getTools(),
 			];
 			
 			// 2) Build the describe document
