@@ -9,6 +9,7 @@ import express from 'express';
 import cors from 'cors';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { randomUUID } from 'crypto';
 import { SSEServerTransport } from '@modelcontextprotocol/sdk/server/sse.js';
 import { 
 	CallToolRequestSchema,
@@ -119,11 +120,37 @@ class GHLMCPHttpServer {
 		// Setup MCP handlers
 		this.setupMCPHandlers();
 		this.setupRoutes();
-		const httpTransport = new StreamableHTTPServerTransport({
-			      app:      this.app,
-			      basePath: '/mcp'
-		    });
-		    this.server.connect(httpTransport);
+		
+		const transports: Record<string, StreamableHTTPServerTransport> = {};
+		
+		// a) SSE endpoint (client → server receives events)
+		this.app.get('/mcp', (req, res) => {
+			const transport = new StreamableHTTPServerTransport({
+				sessionIdGenerator: () => randomUUID(),
+				onsessioninitialized: (sessionId) => {
+					transports[sessionId] = transport;
+				}
+			});
+			// tell the client this is an event-stream
+			res.setHeader('Content-Type', 'text/event-stream');
+			res.flushHeaders();
+			void this.server.connect(transport);
+		});
+		
+		// b) JSON-RPC endpoint (client sends requests here)
+		this.app.post(
+			'/mcp',
+			express.json(),
+			async (req, res) => {
+				const sessionId = req.header('mcp-session-id');
+				const transport = sessionId ? transports[sessionId] : undefined;
+				if (!transport) {
+					res.status(400).send('No transport for session');
+					return;
+				}
+				await transport.handlePostMessage(req, res, req.body);
+			}
+		);
 	}
 	
 	/**
