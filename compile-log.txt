@@ -1,0 +1,7 @@
+src/http-server.ts(327,28): error TS2339: Property 'describe' does not exist on type 'Server<{ method: string; params?: { [x: string]: unknown; _meta?: { [x: string]: unknown; progressToken?: string | number | undefined; } | undefined; } | undefined; }, { method: string; params?: { [x: string]: unknown; _meta?: { ...; } | undefined; } | undefined; }, { ...; }>'.
+src/server.ts(9,3): error TS2300: Duplicate identifier 'CallToolRequestSchema'.
+src/server.ts(10,3): error TS2300: Duplicate identifier 'ErrorCode'.
+src/server.ts(12,3): error TS2724: '"@modelcontextprotocol/sdk/types.js"' has no exported member named 'DescribeRequestSchema'. Did you mean 'SubscribeRequestSchema'?
+src/server.ts(13,3): error TS2300: Duplicate identifier 'CallToolRequestSchema'.
+src/server.ts(14,3): error TS2300: Duplicate identifier 'ErrorCode'.
+src/server.ts(228,26): error TS2339: Property 'describe' does not exist on type 'Server<{ method: string; params?: { [x: string]: unknown; _meta?: { [x: string]: unknown; progressToken?: string | number | undefined; } | undefined; } | undefined; }, { method: string; params?: { [x: string]: unknown; _meta?: { ...; } | undefined; } | undefined; }, { ...; }>'.

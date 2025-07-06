@@ -15,7 +15,7 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "npx tsc",
     "dev": "nodemon --exec ts-node src/http-server.ts",
     "start": "node dist/http-server.js",
     "start:stdio": "node dist/server.js",
@@ -51,6 +51,7 @@
     "axios": "^1.9.0",
     "cors": "^2.8.5",
     "dotenv": "^16.5.0",
-    "express": "^5.1.0"
+    "express": "^5.1.0",
+    "express-list-endpoints": "^7.1.1"
   }
 }
