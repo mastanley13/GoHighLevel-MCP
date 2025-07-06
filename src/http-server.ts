@@ -118,12 +118,11 @@ class GHLMCPHttpServer {
 		// Setup MCP handlers
 		this.setupMCPHandlers();
 		this.setupRoutes();
-		this.server.transport(
-			'/mcp',
-			new SSEServerTransport({
-				app: this.app
-			})
-		);
+		const httpTransport = new StreamableHTTPServerTransport({
+			      app:      this.app,
+			      basePath: '/mcp'
+		    });
+		    this.server.connect(httpTransport);
 	}
 	
 	/**
