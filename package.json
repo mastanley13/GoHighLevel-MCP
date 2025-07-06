@@ -15,7 +15,7 @@
     "node": ">=18.0.0"
   },
   "scripts": {
-    "build": "tsc",
+    "build": "npx tsc",
     "dev": "nodemon --exec ts-node src/http-server.ts",
     "start": "node dist/http-server.js",
     "start:stdio": "node dist/server.js",
