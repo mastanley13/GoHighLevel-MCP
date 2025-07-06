@@ -118,6 +118,10 @@ class GHLMCPHttpServer {
 		// Setup MCP handlers
 		this.setupMCPHandlers();
 		this.setupRoutes();
+		this.server.addTransport(new SSEServerTransport({
+			app:  this.app,
+			path: '/mcp'
+		}));
 	}
 	
 	/**
@@ -313,6 +317,7 @@ class GHLMCPHttpServer {
 	private setupRoutes(): void {
 		// Health check endpoint
 		this.app.get('/health', (req, res) => {
+			console.log('🔎  /health called');
 			res.json({ 
 				status: 'healthy',
 				server: 'ghl-mcp-server',
@@ -324,7 +329,7 @@ class GHLMCPHttpServer {
 		
 		// MCP capabilities endpoint
 		this.app.get('/capabilities', (req, res) => {
-		console.log('🔎  /capabilities called');
+			console.log('🔎  /capabilities called');
 			res.json({
 				capabilities: {
 					tools: {},
@@ -340,7 +345,7 @@ class GHLMCPHttpServer {
 		// ─── STANDARD MCP /describe ENDPOINT ───────────────────────────────
 		// Returns the full MCP “describe” JSON document
 		this.app.get('/describe', (_req, res) => {
-		console.log('🔎  /describe called');
+			console.log('🔎  /describe called');
 			// 1) Gather every tool’s JSON schema
 			const allTools: ToolDescription[] = [
 				...this.contactTools.getToolDefinitions(),
@@ -393,7 +398,7 @@ class GHLMCPHttpServer {
 				const emailISVTools = this.emailISVTools.getToolDefinitions();
 				const mediaTools = this.mediaTools.getToolDefinitions();
 				const objectTools = this.objectTools.getToolDefinitions();
-
+				
 				const socialMediaTools = this.socialMediaTools.getTools();
 				const associationTools = this.associationTools.getTools();
 				const customFieldV2Tools = this.customFieldV2Tools.getTools();
