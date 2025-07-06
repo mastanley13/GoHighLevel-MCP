@@ -447,7 +447,7 @@ class GHLMCPHttpServer {
 					console.log('[MCP] New transport created and connected');
 					} else {
 					// Invalid request
-					return res.status(400).json({
+					res.status(400).json({
 						jsonrpc: '2.0',
 						error: {
 							code: -32600,
@@ -455,6 +455,7 @@ class GHLMCPHttpServer {
 						},
 						id: null
 					});
+					return;
 				}
 				
 				// Handle the request using the CORRECT method name
@@ -480,7 +481,7 @@ class GHLMCPHttpServer {
 			const sessionId = req.headers['mcp-session-id'] as string | undefined;
 			
 			if (!sessionId || !this.transports[sessionId]) {
-				return res.status(400).json({
+				res.status(400).json({
 					jsonrpc: '2.0',
 					error: {
 						code: -32600,
@@ -488,6 +489,7 @@ class GHLMCPHttpServer {
 					},
 					id: null
 				});
+				return;
 			}
 			
 			// Set up SSE headers
