@@ -519,7 +519,7 @@ class GHLMCPHttpServer {
 		});
 		
 		// SSE endpoint for ChatGPT MCP connection (Legacy support)
-		const handleSSE = async (req: express.Request, res: express.Response) => {
+		const handleSSE = async (req: express.Request, res: express.Response): Promise<void> => {
 			const sessionId = req.query.sessionId || 'unknown';
 			console.log(`[GHL MCP HTTP] New SSE connection from: ${req.ip}, sessionId: ${sessionId}, method: ${req.method}`);
 			
